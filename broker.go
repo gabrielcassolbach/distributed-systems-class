@@ -29,33 +29,56 @@ func NewBroker(url string) (*Broker, error) {
     }, nil
 }
 
-func (b *Broker) DeclareQueue(name string) (amqp.Queue, error) {
-    return b.Ch.QueueDeclare(
-        name,
-        true,
-        false,
-        false,
-        false,
-        amqp.Table{
-            amqp.QueueTypeArg: amqp.QueueTypeQuorum,
-        },
+func (b *Broker) DeclareExchange(name string) error {
+    err := b.Ch.ExchangeDeclare(
+        name, 
+        "direct",      
+        true,          
+        false,         
+        false,         
+        false,         
+        nil,           
     )
+    return err 
+}
+
+func (b *Broker) DeclareQueue(name string) (amqp.Queue, error) {
+    q, err := b.Ch.QueueDeclare(
+        name,  
+        true,  
+        false, 
+        false, 
+        false, 
+        nil,   
+    )
+    return q, err
 }
 
 
-func (b *Broker) Publish(ctx context.Context, queueName string, msg string) error {
+func (b *Broker) BindQueue(queueName string, routingKey string, exchangeName string) error {
+    return b.Ch.QueueBind(
+        queueName,    
+        routingKey,     
+        exchangeName, 
+        false,           
+        nil,             
+    )
+}
+
+func (b *Broker) Publish(ctx context.Context, exchangeName string, routingKey string, msg string) error {
     return b.Ch.PublishWithContext(
         ctx,
-        "",
-        queueName,
-        false,
-        false,
+        exchangeName, 
+        routingKey,   
+        false,        
+        false,        
         amqp.Publishing{
             ContentType: "text/plain",
             Body:        []byte(msg),
         },
     )
 }
+
 
 func (b *Broker) Consume(queueName string) (<-chan amqp.Delivery, error) {
     return b.Ch.Consume(
@@ -69,13 +92,8 @@ func (b *Broker) Consume(queueName string) (<-chan amqp.Delivery, error) {
     )
 }
 
-func (b *Broker) StartConsumer(queueName string) error {
-    q, err := b.DeclareQueue(queueName)
-    if err != nil {
-        return err
-    }
-
-    msgs, err := b.Consume(q.Name)
+func (b *Broker) StartConsuming(queueName string) error {
+    msgs, err := b.Consume(queueName)
     if err != nil {
         return err
     }
@@ -87,15 +105,11 @@ func (b *Broker) StartConsumer(queueName string) error {
     }()
 
     log.Println(" [*] Waiting for messages. To exit press CTRL+C")
-
-    select {} 
+    return nil
 }
 
-func failOnError(err error, msg string) {
+func FailOnError(err error, msg string) {
     if err != nil {
         log.Panicf("%s: %s", msg, err)
     }
 }
-
-
-
