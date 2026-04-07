@@ -26,7 +26,7 @@ func main() {
     defer broker.Conn.Close()
     defer broker.Ch.Close()
 
-	_, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     defer cancel()
 
 	msgs, err := broker.Consume("Notification")
@@ -36,7 +36,8 @@ func main() {
 
     go func() {
         for msg := range msgs {
-            log.Printf("Received: %s", msg.Body)
+            log.Printf("Received: %s", "promocao." + string(msg.Body) + " foi publicada")
+            broker.Publish(ctx, "Exchange",  "promocao." + string(msg.Body), string(msg.Body))
         }
     }()
 

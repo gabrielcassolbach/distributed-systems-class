@@ -92,22 +92,6 @@ func (b *Broker) Consume(queueName string) (<-chan amqp.Delivery, error) {
     )
 }
 
-func (b *Broker) StartConsuming(queueName string) error {
-    msgs, err := b.Consume(queueName)
-    if err != nil {
-        return err
-    }
-
-    go func() {
-        for msg := range msgs {
-            log.Printf("Received: %s", msg.Body)
-        }
-    }()
-
-    log.Println(" [*] Waiting for messages. To exit press CTRL+C")
-    return nil
-}
-
 func FailOnError(err error, msg string) {
     if err != nil {
         log.Panicf("%s: %s", msg, err)

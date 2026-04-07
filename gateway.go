@@ -4,10 +4,59 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"strings"
 	"context"
 	"time"
+	"sync"
+	"log"
+	"runtime"
+	"strings"
+	"os/exec"
 )
+
+var (
+    historico []string
+    mu        sync.Mutex 
+)
+func menu(reader *bufio.Reader) (string, string) {
+	CallClear()
+	fmt.Println("--- MENU PRINCIPAL ---")
+	fmt.Println("1. Cadastrar")
+	fmt.Println("2. Votar")
+	fmt.Println("3. Listar")
+	fmt.Println("4. Sair")
+	fmt.Print("Escolha uma opção: ")
+
+	option, _ := reader.ReadString('\n')
+	option = strings.TrimSpace(option)
+
+	if option == "4" {
+		return option, ""
+	}
+
+	var promotion string
+	if option == "1" {
+		CallClear()
+		fmt.Println("--- Digite o nome da promoção ---")
+		promotion, _ = reader.ReadString('\n')
+		promotion = strings.TrimSpace(promotion)
+		fmt.Printf("Promoção '%s' cadastrada! (Pressione Enter)", promotion)
+		reader.ReadString('\n') 
+	}
+	return option, promotion
+}
+
+
+func CallClear() {
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("cls")
+	} else {
+		cmd = exec.Command("clear")
+	}
+	cmd.Stdout = os.Stdout
+	cmd.Run()
+}
+
 
 func initMS() (*Broker) {
 	broker, err := NewBroker("amqp://guest:guest@localhost:5672/")
@@ -23,6 +72,31 @@ func initMS() (*Broker) {
 	return broker
 }
 
+func StartConsuming(b *Broker){
+	msgs, err := b.Consume("Gateway")
+    if err != nil {
+        return  
+    }
+
+    go func() {
+        for msg := range msgs {
+			mu.Lock()
+            historico = append(historico, string(msg.Body))
+            mu.Unlock()
+            log.Printf("\npromoção %s publicada\n", msg.Body)
+        }
+    }()
+
+    log.Println(" [*] Waiting for messages. To exit press CTRL+C\n")
+}
+
+func listPromotions(){
+	fmt.Println("\n --- Histórico de Promoções ---")
+	for i := 0; i < len(historico); i++ {
+		fmt.Println(historico[i])
+	}
+}
+
 func main() {
 	broker := initMS()
 	defer broker.Conn.Close()
@@ -32,24 +106,20 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     defer cancel()
 
-	broker.StartConsuming("Gateway")
+	StartConsuming(broker)
 
 	for {
-		fmt.Println("\n--- MENU PRINCIPAL ---")
-		fmt.Println("1. Cadastrar")
-		fmt.Println("2. Votar")
-		fmt.Println("3. Sair")
-		fmt.Print("Escolha uma opção: ")
-
-		option, _ := reader.ReadString('\n')
-		option = strings.TrimSpace(option)
-
+		option, promotion := menu(reader)
 		switch option {
 		case "1":
-			broker.Publish(ctx, "Exchange", "promocao.recebida", "promocao")
+			broker.Publish(ctx, "Exchange", "promocao.recebida", promotion)
 		case "2":
-			broker.Publish(ctx, "Exchange", "promocao.voto", "promocaovoto")
+			broker.Publish(ctx, "Exchange", "promocao.voto", promotion)
 		case "3":
+			listPromotions()
+			fmt.Println("\n\nPress any key to go back to menu")
+			reader.ReadString('\n') 
+		case "4":
 			return
 		default:
 			fmt.Println("Opção inválida, tente novamente.")

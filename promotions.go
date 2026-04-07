@@ -33,11 +33,12 @@ func main() {
 		log.Printf("ERROR %s\n", err)
         return 
     }
+	
 
     go func() {
         for msg := range msgs {
             log.Printf("Received: %s", msg.Body)
-			broker.Publish(ctx, "Exchange", "promocao.publicada", "livros")
+			broker.Publish(ctx, "Exchange", "promocao.publicada", string(msg.Body))
         }
     }()
 
