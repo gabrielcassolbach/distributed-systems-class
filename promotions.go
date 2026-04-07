@@ -25,20 +25,24 @@ func main() {
 	defer broker.Conn.Close()
     defer broker.Ch.Close()
 	
+	signer, _ := NewSigner()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     defer cancel()
-
+	
 	msgs, err := broker.Consume("Promotions")
     if err != nil {
 		log.Printf("ERROR %s\n", err)
         return 
     }
-	
 
     go func() {
         for msg := range msgs {
-            log.Printf("Received: %s", msg.Body)
-			broker.Publish(ctx, "Exchange", "promocao.publicada", string(msg.Body))
+			content, err := signer.Open(string(msg.Body)) 
+			if err == nil{
+				log.Printf("Received: %s", content)
+				broker.Publish(ctx, "Exchange", "promocao.publicada", signer.Sign(content))
+			}
         }
     }()
 

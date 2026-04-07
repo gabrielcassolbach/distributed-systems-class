@@ -72,7 +72,7 @@ func initMS() (*Broker) {
 	return broker
 }
 
-func StartConsuming(b *Broker){
+func StartConsuming(b *Broker, s *Signer){
 	msgs, err := b.Consume("Gateway")
     if err != nil {
         return  
@@ -80,10 +80,13 @@ func StartConsuming(b *Broker){
 
     go func() {
         for msg := range msgs {
-			mu.Lock()
-            historico = append(historico, string(msg.Body))
-            mu.Unlock()
-            log.Printf("\npromoção %s publicada\n", msg.Body)
+			content, err := s.Open(string(msg.Body)) 
+			if err == nil{
+				mu.Lock()
+				historico = append(historico, content)
+				mu.Unlock()
+				log.Printf("\npromoção %s publicada\n", content)
+			}
         }
     }()
 
@@ -102,19 +105,21 @@ func main() {
 	defer broker.Conn.Close()
     defer broker.Ch.Close()
 	
+	signer, _ := NewSigner()
+
 	reader := bufio.NewReader(os.Stdin)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     defer cancel()
 
-	StartConsuming(broker)
+	StartConsuming(broker, signer)
 
 	for {
 		option, promotion := menu(reader)
 		switch option {
 		case "1":
-			broker.Publish(ctx, "Exchange", "promocao.recebida", promotion)
+			broker.Publish(ctx, "Exchange", "promocao.recebida", signer.Sign(promotion))
 		case "2":
-			broker.Publish(ctx, "Exchange", "promocao.voto", promotion)
+			broker.Publish(ctx, "Exchange", "promocao.voto", signer.Sign(promotion))
 		case "3":
 			listPromotions()
 			fmt.Println("\n\nPress any key to go back to menu")

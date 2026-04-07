@@ -45,8 +45,8 @@ func (b *Broker) DeclareExchange(name string) error {
 func (b *Broker) DeclareQueue(name string) (amqp.Queue, error) {
     q, err := b.Ch.QueueDeclare(
         name,  
-        true,  
-        false, 
+        false,  
+        true, 
         false, 
         false, 
         nil,   
@@ -73,7 +73,7 @@ func (b *Broker) Publish(ctx context.Context, exchangeName string, routingKey st
         false,        
         false,        
         amqp.Publishing{
-            ContentType: "text/plain",
+            ContentType: "application/json",
             Body:        []byte(msg),
         },
     )
