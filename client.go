@@ -4,6 +4,8 @@ import (
 	"log"
 	"fmt"
 	"github.com/google/uuid"
+	"encoding/json"
+	"strings"
 )
 
 func initClient(categorias [] string) (*Broker, string) {
@@ -21,7 +23,23 @@ func initClient(categorias [] string) (*Broker, string) {
 		broker.BindQueue(id.String(), "promocao." + categorias[i], "Exchange")
 	}
 
+	broker.BindQueue(id.String(), "promocao.destaque", "Exchange")
+
 	return broker, id.String()
+}
+
+func processMessage(s *Signer, body []byte) (string) {
+
+	var envelope map[string]interface{}
+	err := json.Unmarshal(body, &envelope)
+
+	if err == nil && envelope["signature"] != nil {
+        msg, _ := s.Open(string(body))
+		parts := strings.Split(msg, " ")
+		return "Promoção " + parts[0]  + " em destaque!!"
+	} else {
+		return string(body)
+	}
 }
 
 func menu() ([] string) {
@@ -52,7 +70,8 @@ func main() {
 
     defer broker.Conn.Close()
     defer broker.Ch.Close()
-
+	
+	s, _ := NewSigner()
 	msgs, err := broker.Consume(id)
     if err != nil {
         return 
@@ -60,7 +79,7 @@ func main() {
 
     go func() {
         for msg := range msgs {
-            log.Printf("Received: %s", msg.Body)
+            log.Printf("Received: %s", processMessage(s, msg.Body))
         }
     }()
 

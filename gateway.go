@@ -17,7 +17,17 @@ var (
     historico []string
     mu        sync.Mutex 
 )
-func menu(reader *bufio.Reader) (string, string) {
+
+func inHistory(promotion string) (bool) {
+	for i := 0; i < len(historico); i++ {
+		if(historico[i] == promotion){
+			return true
+		}
+	}
+	return false 
+}
+
+func menu(reader *bufio.Reader) (string, string, string) {
 	CallClear()
 	fmt.Println("--- MENU PRINCIPAL ---")
 	fmt.Println("1. Cadastrar")
@@ -30,19 +40,37 @@ func menu(reader *bufio.Reader) (string, string) {
 	option = strings.TrimSpace(option)
 
 	if option == "4" {
-		return option, ""
+		return option, "", ""
 	}
 
 	var promotion string
-	if option == "1" {
+	if (option == "1" || option == "2") {
 		CallClear()
 		fmt.Println("--- Digite o nome da promoção ---")
 		promotion, _ = reader.ReadString('\n')
 		promotion = strings.TrimSpace(promotion)
-		fmt.Printf("Promoção '%s' cadastrada! (Pressione Enter)", promotion)
-		reader.ReadString('\n') 
+		if(option == "1"){
+			fmt.Printf("Promoção '%s' cadastrada!", promotion)
+		}
+		if(option == "2" && !inHistory(promotion)) {
+			option = "NULLPTR"
+			fmt.Printf("Promoção não existe (Pressione Enter)\n")
+			reader.ReadString('\n') 
+		}
 	}
-	return option, promotion
+
+	var vote string
+	vote = "undefined"
+	if (option == "2"){
+		for vote != "positivo" && vote != "negativo" {
+			CallClear()
+			fmt.Println("Digite positivo ou negativo:")
+			vote, _ = reader.ReadString('\n')
+			vote = strings.TrimSpace(vote)
+		}
+	}
+
+	return option, promotion, vote
 }
 
 
@@ -114,11 +142,12 @@ func main() {
 	StartConsuming(broker, signer)
 
 	for {
-		option, promotion := menu(reader)
+		option, promotion, vote := menu(reader)
 		switch option {
 		case "1":
 			broker.Publish(ctx, "Exchange", "promocao.recebida", signer.Sign(promotion))
 		case "2":
+			promotion = promotion + " " + vote
 			broker.Publish(ctx, "Exchange", "promocao.voto", signer.Sign(promotion))
 		case "3":
 			listPromotions()

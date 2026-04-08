@@ -4,6 +4,7 @@ import (
 	"log"
 	"context"
 	"time"
+    "strings"
 )
 
 func initMS() (*Broker) {
@@ -17,6 +18,7 @@ func initMS() (*Broker) {
 	FailOnError(err, "Failed to create Notification queue")
 	
 	broker.BindQueue("Notification", "promocao.publicada", "Exchange")
+    broker.BindQueue("Notification", "promocao.destaque", "Exchange")
 	return broker
 }
 
@@ -40,8 +42,16 @@ func main() {
         for msg := range msgs {
             content, err := signer.Open(string(msg.Body)) 
 			if err == nil{
-                log.Printf("Received: %s", "promocao." + content + " foi publicada")
-                broker.Publish(ctx, "Exchange",  "promocao." + content, content)
+                println("HERE\n")
+                if strings.Contains(content, "hot deal") {
+                    parts := strings.Split(content, " ")
+                    broker.Publish(ctx, "Exchange",  "promocao." + parts[0], parts[0] + parts[2] + parts[3])
+                }else{
+                    log.Printf("Received: %s", "promocao." + content + " foi publicada")
+                    broker.Publish(ctx, "Exchange",  "promocao." + content, content)
+                }
+            }else{
+                println(err)
             }
         }
     }()

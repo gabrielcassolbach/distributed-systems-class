@@ -9,8 +9,11 @@ promotions:
 notification:
 	go run $(GO_FILES) notification.go
 
+ranking:
+	go run $(GO_FILES) ranking.go
+
 client:
-	go run broker.go client.go
+	go run $(GO_FILES) client.go
 
 clean:
 	go clean
