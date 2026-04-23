@@ -42,7 +42,6 @@ func main() {
         for msg := range msgs {
             content, err := signer.Open(string(msg.Body)) 
 			if err == nil{
-                println("HERE\n")
                 if strings.Contains(content, "hot deal") {
                     parts := strings.Split(content, " ")
                     broker.Publish(ctx, "Exchange",  "promocao." + parts[0], parts[0] + parts[2] + parts[3])
