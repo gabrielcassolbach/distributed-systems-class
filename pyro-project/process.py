@@ -30,6 +30,8 @@ class Process:
         self.state = ProcessState.FOLLOWER
         self.election_timeout = self._get_random_timeout()
         self.last_contact = time.time()
+        self.log = []
+        self.commit_index = - 1
 
     def _get_random_timeout(self):
         return random.uniform(1.5, 3.0)
@@ -52,8 +54,71 @@ class Process:
             return True
         return False
     
+    def append_log(self, entry):
+        print("log registered....")
+        self.log.append(entry) 
+        return True
+
+    def send_uncommited_logs(self, entry):
+        total_votes = 1
+        qtd_nodes = 1
+        for peer in PEERS:                   
+            if peer['name'] == self.name:
+                continue
+            
+            try:
+                total_votes += self.network.call_remote_method(
+                    peer['port'], 
+                    peer['id'], 
+                    "append_log", 
+                    entry
+                )
+                qtd_nodes += 1
+            except:
+                pass
+
+        return total_votes, qtd_nodes
+
+    def commit_log(self):
+        print("log commited")
+        self.commit_index = len(self.log) - 1
+        self.print_node_state()
+
+    def notify_commit(self):
+        for peer in PEERS:                   
+            if peer['name'] == self.name:
+                continue
+            
+            try:
+                self.network.call_remote_method(
+                    peer['port'], 
+                    peer['id'], 
+                    "commit_log"
+                )
+            except:
+                pass
+
+    def execute(self, command):
+        entry = {
+            "term": self.current_election, 
+            "command": command         
+        }
+
+        self.log.append(entry) 
+        print("log registered....")
+
+        received_acks, qtd_nodes = self.send_uncommited_logs(entry)
+        
+        print(received_acks, qtd_nodes)
+        if received_acks >= (qtd_nodes // 2) + 1:
+            self.commit_log()
+            self.notify_commit()
+
+    def print_node_state(self):
+        if self.commit_index != -1:
+            print("NODE STATE: ", self.log[self.commit_index])
+
     def receive_heartbeat(self, leader_term):
-        print("receiving heartbeat")
         if leader_term >= self.current_election:
             self.current_election = leader_term
             self.state = ProcessState.FOLLOWER
@@ -66,7 +131,6 @@ class Process:
         self.state = ProcessState.LEADER
 
     def send_heartbeat(self):
-        print("sending heartbeat...")
         for peer in PEERS:                   
             if peer['name'] == self.name:
                 continue
@@ -88,49 +152,71 @@ class Process:
         self.votes = 1
         self.voted_for = self.name
         self.current_election += 1
+        total_nodes = 1
 
         for peer in PEERS:
-            granted = self.network.call_remote_method(
-                peer['port'], 
-                peer['id'], 
-                "decide_vote", 
-                self.current_election, 
-                self.name
-            )
-            if granted:
-                self.votes += 1
-            
-            total_nodes = len(PEERS) + 1
-            if self.votes >= (total_nodes // 2) + 1:
-                self.become_leader()
-                return 
+            try:
+                if peer['name'] == self.name:
+                    continue
 
+                granted = self.network.call_remote_method(
+                    peer['port'], 
+                    peer['id'], 
+                    "decide_vote", 
+                    self.current_election, 
+                    self.name
+                )
+                if granted:
+                    self.votes += 1
+                
+                total_nodes += 1
+            except:
+                pass
+        
+        if self.votes >= (total_nodes // 2) + 1:
+            self.become_leader()
+            self.register_leader()
+            return 
+            
+        self.state = ProcessState.FOLLOWER
+        self.voted_for = None
+
+    def register_leader(self):
+        try:
+            ns = Pyro5.api.locate_ns()
+            try:
+                ns.remove("Leader")
+            except:
+                pass
+
+            ns.register("Leader", self.network.uri)
+            print(f"[{self.name}] Leader registered on NameServer.")
+            
+        except Exception as e:
+            print(f"[{self.name}] Failed to register leader on NameServer: {e}")
+
+        
 def raft_algorithm(process):
     if process.state == ProcessState.FOLLOWER:
         process._check_status()
     elif process.state == ProcessState.LEADER:
         process.send_heartbeat()
-    else:
-        print("candidate state")
 
 def create_process(node_id, port):
     process = Process(name=f"Node_{node_id}")
-
     process._set_network(NetworkInterface(
         object_to_expose=process, 
         port=port, 
         object_id=node_id
     ))
-
     return process
 
 def main(node_id, port):
     process = create_process(node_id, port)
     process.network.start_communication()
-    
     while True:
         raft_algorithm(process)
-        time.sleep(0.1)    
+        time.sleep(0.05)    
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:

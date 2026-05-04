@@ -24,3 +24,4 @@ class NetworkInterface:
         with Pyro5.api.Proxy(uri) as proxy:
             remote_method = getattr(proxy, method_name)
             return remote_method(*args)
+
