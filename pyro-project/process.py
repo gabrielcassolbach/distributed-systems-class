@@ -12,6 +12,13 @@ PEERS = [
     {"port": "3004", "id": "4", "name": "Node_4"}
 ]
 
+COLORS = {
+    "ok": "\033[92m",      # Green
+    "warning": "\033[93m", # Yellow
+    "critical": "\033[91m",# Red
+    "reset": "\033[0m"
+}
+
 
 @Pyro5.api.expose
 class ProcessState(Enum):
@@ -34,7 +41,7 @@ class Process:
         self.commit_index = - 1
 
     def _get_random_timeout(self):
-        return random.uniform(1.5, 3.0)
+        return random.uniform(3, 4.5)
     
     def _reset_election_timer(self):
         self.last_contact = time.time()
@@ -55,7 +62,7 @@ class Process:
         return False
     
     def append_log(self, entry):
-        print("log registered....")
+        self.cprint("log registered....")
         self.log.append(entry) 
         return True
 
@@ -65,7 +72,7 @@ class Process:
         for peer in PEERS:                   
             if peer['name'] == self.name:
                 continue
-            
+            time.sleep(0.25)
             try:
                 total_votes += self.network.call_remote_method(
                     peer['port'], 
@@ -80,7 +87,8 @@ class Process:
         return total_votes, qtd_nodes
 
     def commit_log(self):
-        print("log commited")
+        time.sleep(0.2)
+        self.cprint("log commited")
         self.commit_index = len(self.log) - 1
         self.print_node_state()
 
@@ -105,18 +113,30 @@ class Process:
         }
 
         self.log.append(entry) 
-        print("log registered....")
-
+        self.cprint("log registered....")
+        time.sleep(0.5)
         received_acks, qtd_nodes = self.send_uncommited_logs(entry)
         
-        print(received_acks, qtd_nodes)
         if received_acks >= (qtd_nodes // 2) + 1:
             self.commit_log()
+            time.sleep(0.5)
             self.notify_commit()
 
+    def cprint(self, *args, **kwargs):
+        state_map = {
+            ProcessState.FOLLOWER: COLORS["ok"],      # Green
+            ProcessState.CANDIDATE: COLORS["warning"], # Yellow
+            ProcessState.LEADER: COLORS["critical"]    # Red
+        }
+
+        color_code = state_map.get(self.state, COLORS["reset"])
+        message = " ".join(map(str, args))
+        print(f"{color_code}{message}{COLORS['reset']}", **kwargs)
+
     def print_node_state(self):
+        self.cprint(self.state)
         if self.commit_index != -1:
-            print("NODE STATE: ", self.log[self.commit_index])
+            self.cprint(self.log[self.commit_index])
 
     def receive_heartbeat(self, leader_term):
         if leader_term >= self.current_election:
@@ -126,9 +146,9 @@ class Process:
             return True
         return False
         
-    
     def become_leader(self):
         self.state = ProcessState.LEADER
+        self.print_node_state()
 
     def send_heartbeat(self):
         for peer in PEERS:                   
@@ -153,6 +173,7 @@ class Process:
         self.voted_for = self.name
         self.current_election += 1
         total_nodes = 1
+        self.print_node_state()
 
         for peer in PEERS:
             try:
@@ -177,9 +198,10 @@ class Process:
             self.become_leader()
             self.register_leader()
             return 
-            
+        
         self.state = ProcessState.FOLLOWER
         self.voted_for = None
+        self.print_node_state()
 
     def register_leader(self):
         try:
@@ -190,10 +212,10 @@ class Process:
                 pass
 
             ns.register("Leader", self.network.uri)
-            print(f"[{self.name}] Leader registered on NameServer.")
+            self.cprint(f"[{self.name}] Leader registered on NameServer.")
             
         except Exception as e:
-            print(f"[{self.name}] Failed to register leader on NameServer: {e}")
+            self.cprint(f"[{self.name}] Failed to register leader on NameServer: {e}")
 
         
 def raft_algorithm(process):
@@ -216,7 +238,7 @@ def main(node_id, port):
     process.network.start_communication()
     while True:
         raft_algorithm(process)
-        time.sleep(0.05)    
+        time.sleep(0.01)    
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
