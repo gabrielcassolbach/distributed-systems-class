@@ -2,7 +2,8 @@ import sys
 import time
 import random
 from pyro import NetworkInterface
-from enum import Enum, auto
+from enum import Enum
+import threading
 import Pyro5.api
 
 PEERS = [
@@ -13,25 +14,27 @@ PEERS = [
 ]
 
 COLORS = {
-    "ok": "\033[92m",      # Green
-    "warning": "\033[93m", # Yellow
-    "critical": "\033[91m",# Red
+    "follower": "\033[92m",  # Green
+    "candidate": "\033[93m", # Yellow
+    "leader": "\033[91m",    # Red
     "reset": "\033[0m"
 }
 
 
 @Pyro5.api.expose
-class ProcessState(Enum):
-    FOLLOWER = auto()
-    CANDIDATE = auto()
-    LEADER = auto()
+class ProcessState(str, Enum):
+    FOLLOWER = "follower"
+    CANDIDATE = "candidate"
+    LEADER = "leader"
+
 
 @Pyro5.api.expose
 class Process:
     def __init__(self, name):
         self.name = name
         self.network = None 
-        self.voted_for = None 
+        self.voted_for = None
+        self.lock = threading.Lock() 
         self.votes = 0
         self.current_election = 0
         self.state = ProcessState.FOLLOWER
@@ -41,7 +44,7 @@ class Process:
         self.commit_index = - 1
 
     def _get_random_timeout(self):
-        return random.uniform(3, 4.5)
+        return random.uniform(3, 10)
     
     def _reset_election_timer(self):
         self.last_contact = time.time()
@@ -56,9 +59,17 @@ class Process:
                 self._start_election()
 
     def decide_vote(self, candidate_term, candidate_name):
-        if candidate_term > self.current_election:
-            self.voted_for = candidate_name
-            return True
+        with self.lock:
+            if candidate_term > self.current_election:
+                self.current_election = candidate_term
+                self.voted_for = None 
+                self.state = ProcessState.FOLLOWER 
+
+            if candidate_term == self.current_election and self.voted_for is None:
+                self.voted_for = candidate_name
+                return True 
+            
+            
         return False
     
     def append_log(self, entry):
@@ -124,9 +135,9 @@ class Process:
 
     def cprint(self, *args, **kwargs):
         state_map = {
-            ProcessState.FOLLOWER: COLORS["ok"],      # Green
-            ProcessState.CANDIDATE: COLORS["warning"], # Yellow
-            ProcessState.LEADER: COLORS["critical"]    # Red
+            ProcessState.FOLLOWER: COLORS["follower"],      
+            ProcessState.CANDIDATE: COLORS["candidate"], 
+            ProcessState.LEADER: COLORS["leader"]    
         }
 
         color_code = state_map.get(self.state, COLORS["reset"])
@@ -142,7 +153,7 @@ class Process:
         if leader_term >= self.current_election:
             self.current_election = leader_term
             self.state = ProcessState.FOLLOWER
-            self.last_contact = time.time()
+            self._reset_election_timer()
             return True
         return False
         
@@ -187,6 +198,7 @@ class Process:
                     self.current_election, 
                     self.name
                 )
+
                 if granted:
                     self.votes += 1
                 
