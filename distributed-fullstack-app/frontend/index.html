@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Gateway Test</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="card">
+        <h2>Gerenciar Categorias</h2>
+        <input type="text" id="category-payload" value="Electronics">
+        <div style="display: flex; gap: 10px; margin-top: 5px;">
+            <button id="btn-subscribe" style="flex: 1;">Inscrever</button>
+            <button id="btn-unsubscribe" class="btn-danger" style="flex: 1;">Cancelar</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Register Promotion</h2>
+        <input type="text" id="prod-payload" value="Monitor_Gamer 1250.00 Electronics 101">
+        <button id="btn-register">Send Promotion</button>
+    </div>
+
+    <div class="card">
+        <h2>Vote in Promotion</h2>
+        <div style="margin-bottom: 10px;">
+            <label>Promotion Name/ID:</label>
+            <input type="text" id="vote-name" value="Monitor_Gamer">
+        </div>
+        <div style="margin-bottom: 10px;">
+            <label>Vote:</label>
+            <select id="vote-type">
+                <option value="1">1 (Upvote)</option>
+                <option value="0">0 (Downvote)</option>
+            </select>
+        </div>
+        <button id="btn-vote" class="btn-secondary">Submit Vote</button>
+    </div>
+
+    <div class="card">
+        <h2>Actions</h2>
+        <button id="btn-list" style="background-color: #38a169;">List All (GET)</button>
+    </div>
+
+    <div class="card">
+        <h2>API Response</h2>
+        <pre id="output">Waiting for action...</pre>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
