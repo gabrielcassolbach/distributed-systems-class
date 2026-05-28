@@ -10,8 +10,6 @@ import (
 
 type Score struct {
     Values  map[string]int
-    LargestKey string
-    MaxVal   int
 }
 
 func NewScore() *Score {
@@ -20,12 +18,9 @@ func NewScore() *Score {
 	}
 }
 
-func (m *Score) Add(key string, value int) {
+func (m *Score) Add(key string, value int) (int){
     m.Values[key] = value
-    if (value > m.MaxVal || key == m.LargestKey) {
-        m.MaxVal = value
-        m.LargestKey = key
-    }
+    return value
 }
 
 func initMS() (*Broker) {
@@ -42,7 +37,7 @@ func initMS() (*Broker) {
 	return broker
 }
 
-func processVote(msg string, broker *Broker, score *Score){
+func processVote(msg string, broker *Broker, score *Score) (int){
     parts := strings.Split(msg, " ")
     
     fmt.Print(parts)
@@ -54,7 +49,7 @@ func processVote(msg string, broker *Broker, score *Score){
         vote = -1
     }
     
-    score.Add(parts[0], score.Values[parts[0]] + vote)
+    return score.Add(parts[0], score.Values[parts[0]] + vote)
 }
 
 func main() {
@@ -78,11 +73,8 @@ func main() {
         for msg := range msgs {
             content, err := signer.Open(string(msg.Body)) 
 			if err == nil{
-                processVote(content, broker, score)
-                fmt.Printf("Max Val: %d\n", score.MaxVal)
-                if(score.MaxVal >= 3){ 
-                    fmt.Printf("destaque\n")
-                    broker.Publish(ctx, "Exchange",  "promocao.destaque", signer.Sign(content + " hot deal"))
+                if(processVote(content, broker, score) >= 3){ 
+                    broker.Publish(ctx, "Exchange",  "promocao.destaque", signer.Sign(strings.Split(content, " ")[0] + " hot deal"))
                 }   
             }
         }

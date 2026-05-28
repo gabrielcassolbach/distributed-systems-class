@@ -32,7 +32,6 @@ func StartConsuming(b *Broker, s *Signer) {
 			if err == nil {
 				mu.Lock()
 				historico = append(historico, content)
-				print("historico: ", historico)
 				mu.Unlock()
 				log.Printf("\npromoção %s publicada\n", content)
 			} else {
@@ -71,6 +70,8 @@ func main() {
 	http.HandleFunc("/api/promotions/vote", voteInPromotion(broker, signer))
 	http.HandleFunc("/api/categories/subscribe", registerInterest(broker))
 	http.HandleFunc("/api/categories/unsubscribe", cancelInterest(broker))
+
+	http.HandleFunc("/api/sse", sseHandler(broker))
 
 	log.Println("Gateway server running on http://localhost:8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {

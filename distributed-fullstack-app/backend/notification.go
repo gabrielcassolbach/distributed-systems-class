@@ -44,7 +44,8 @@ func main() {
 			if err == nil{
                 if strings.Contains(content, "hot deal") {
                     parts := strings.Split(content, " ")
-                    broker.Publish(ctx, "Exchange",  "promocao." + parts[0], parts[0] + parts[2] + parts[3])
+                    broker.Publish(ctx, "Exchange",  "promocao." + parts[0], parts[0] + parts[1] + parts[2])
+                    SendEmail()
                 }else{
                     log.Printf("Received: %s", "promocao." + content + " foi publicada")
                     broker.Publish(ctx, "Exchange",  "promocao." + content, content)
